@@ -10,6 +10,8 @@ Copy `default.env` to `.env` and change the variables as needed to set your SSID
 
 If you plan on burning an SD Card and running it on a Raspberry Pi, make sure to set `NERVES=true` otherwise keep it as `NERVES=false`.
 
+To build `Nerves` systems you must run Linux, I also recommend running the app in a Linux environment, as it hasn't been tested outside of that.
+
 If you are running the app locally in a VM you will need to adjust the `INTERFACE` variable. Run `ifconfig` in your VM to figure out the correct interface. Also, because the Lifx library uses UDP broadcasting you will most likely need to setup the VM network in `Bridged Adaptor` mode and select the network interface from your host machine
 
 To burn your Nerves app to an SD Card:
