@@ -16,13 +16,10 @@ defmodule LifxController.Mixfile do
      deps: deps ++ system(@target)]
   end
 
-  # Configuration for the OTP application.
-  #
-  # Type `mix help compile.app` for more information.
   def application do
     [
       mod: {LifxController, []},
-      applications: [:logger, :nerves, :nerves_system_rpi2, :nerves_interim_wifi, :lifx]
+      applications: [:logger, :nerves_interim_wifi, :lifx, :mdns, :nerves, :nerves_system_rpi2]
    ]
   end
 
@@ -31,6 +28,7 @@ defmodule LifxController.Mixfile do
       {:nerves, "~> 0.3.0"},
       {:nerves_system_rpi2, "~> 0.6.1"},
       {:nerves_interim_wifi, "~> 0.1.0"},
+      {:mdns, "~> 0.1.3"},
       {:lifx, "~> 0.1.7"}
     ]
   end

@@ -43,12 +43,24 @@ defmodule LifxController.NetworkListener do
     Lifx.Client.start
   end
 
+  def start_mdns(ip) do
+    Mdns.Server.set_ip(ip)
+    Mdns.Server.add_service(%Mdns.Server.Service{
+      domain: "lifx.local",
+      data: :ip,
+      ttl: 120,
+      type: :a
+      })
+    Mdns.Server.start
+  end
+
   def start_wifi do
     Logger.info "Starting Wifi on interface: #{@interface} SSID: #{@ssid}"
     Nerves.InterimWiFi.setup(@interface, ssid: @ssid, key_mgmt: :"WPA-PSK", psk: @psk)
   end
 
   def init(:ok) do
+    Logger.info "Starting Nerves: #{@nerves}"
     GenEvent.add_handler(Nerves.NetworkInterface.event_manager, WifiHandler, self)
     case @nerves do
       "true" -> start_wifi
@@ -56,6 +68,7 @@ defmodule LifxController.NetworkListener do
         ip = System.get_env("INTERFACE") |> get_ip
         Logger.info "Got IP #{inspect ip}"
         start_lifx
+        start_mdns(ip)
     end
     {:ok, %{}}
   end
@@ -66,6 +79,7 @@ defmodule LifxController.NetworkListener do
     {:ok, ip} = :inet_parse.address(to_char_list(info.ipv4_address))
     Logger.info "Got IP #{inspect ip}"
     start_lifx
+    start_mdns(ip)
     {:noreply, state}
   end
 

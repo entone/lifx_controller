@@ -1,9 +1,7 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
-#
-# This configuration file is loaded before any dependency and
-# is restricted to this project.
 use Mix.Config
+
+config :logger,
+  level: :info
 
 config :lifx,
   tcp_server: true,
@@ -12,8 +10,9 @@ config :lifx,
 config :nerves_interim_wifi,
   regulatory_domain: "US"
 
-# Import target specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
-# Uncomment to use target specific configurations
+config :nerves, :firmware,
+  fwup_conf: "config/rpi2/fwup.conf",
+  rootfs_additions: "config/rpi2/rootfs-additions"
+
 
 # import_config "#{Mix.Project.config[:target]}.exs"

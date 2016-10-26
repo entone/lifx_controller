@@ -7,7 +7,7 @@ defmodule LifxController.Supervisor do
   end
 
   def init(:ok) do
-    Logger.info "Server: #{Application.get_env(:lifx, :tcp_server)}"
+    Logger.info "Lifx Server: #{Application.get_env(:lifx, :tcp_server)}"
     children = [
       worker(LifxController.NetworkListener, []),
     ]
