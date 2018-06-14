@@ -1,86 +1,73 @@
 defmodule LifxController.NetworkListener do
-  use GenServer
+  @moduledoc """
+  Example of setting up wired and wireless networking on a Nerves device.
+  """
+
   require Logger
 
-  @nerves System.get_env("NERVES")
-  @interface System.get_env("INTERFACE")
-  @ssid System.get_env("SSID")
-  @psk System.get_env("PSK")
+  alias Nerves.Network
 
-  defmodule WifiHandler do
-    use GenEvent
-    def init(parent) do
-      {:ok, %{:parent => parent}}
-    end
+  @interface Application.get_env(:lifx_controller, :interface, :wlan0)
+  @target System.get_env("MIX_TARGET") || "host"
 
-    def handle_event({:udhcpc, _, :bound, info}, state) do
-      Logger.info "Wifi bound: #{inspect info}"
-      send(state.parent, {:bound, info})
-      {:ok, state}
-    end
-
-    def handle_event(_ev, state) do
-      {:ok, state}
-    end
+  @doc "Main entry point into the program. This is an OTP callback."
+  def start_link() do
+    GenServer.start_link(__MODULE__, to_string(@interface), name: __MODULE__)
   end
 
-  def start_link do
-    GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  @doc "Are we connected to the internet?"
+  def connected?, do: GenServer.call(__MODULE__, :connected?)
+
+  @doc "Returns the current ip address"
+  def ip_addr, do: GenServer.call(__MODULE__, :ip_addr)
+
+  @doc """
+  Attempts to perform a DNS lookup to test connectivity.
+
+  ## Examples
+
+    iex> HelloNetwork.test_dns()
+    {:ok,
+     {:hostent, 'nerves-project.org', [], :inet, 4,
+      [{192, 30, 252, 154}, {192, 30, 252, 153}]}}
+  """
+  def test_dns(hostname \\ 'nerves-project.org') do
+    :inet_res.gethostbyname(hostname)
   end
 
-  def get_ip(interface) do
-    Logger.info "Getting IP address for interface #{interface}"
-    :inet.getifaddrs()
-      |> elem(1)
-      |> Enum.filter(fn(intf) -> elem(intf, 0) == to_char_list(interface) end)
-      |> Enum.at(0)
-      |> elem(1)
-      |> Keyword.get(:addr)
-  end
+  ## GenServer callbacks
 
-  def start_lifx do
-    Logger.info "Starting Lifx Client"
-    Lifx.Client.start
-  end
-
-  def start_mdns(ip) do
-    Mdns.Server.set_ip(ip)
-    Mdns.Server.add_service(%Mdns.Server.Service{
-      domain: "lifx.local",
-      data: :ip,
-      ttl: 120,
-      type: :a
-      })
-    Mdns.Server.start
-  end
-
-  def start_wifi do
-    Logger.info "Starting Wifi on interface: #{@interface} SSID: #{@ssid}"
-    Nerves.InterimWiFi.setup(@interface, ssid: @ssid, key_mgmt: :"WPA-PSK", psk: @psk)
-  end
-
-  def init(:ok) do
-    Logger.info "Starting Nerves: #{@nerves}"
-    GenEvent.add_handler(Nerves.NetworkInterface.event_manager, WifiHandler, self)
-    case @nerves do
-      "true" -> start_wifi
+  def init(interface) do
+    case @target do
+      "host" -> Process.send_after(self(), :start_client, 1000)
       _ ->
-        ip = System.get_env("INTERFACE") |> get_ip
-        Logger.info "Got IP #{inspect ip}"
-        start_lifx
-        start_mdns(ip)
+        Network.setup(interface)
+        SystemRegistry.register()
     end
-    {:ok, %{}}
+    {:ok, %{interface: interface, ip_address: nil, connected: false}}
   end
 
-  def handle_info({:bound, info}, state) do
-    Logger.info "IP Address Bound"
-    :timer.sleep(1000)
-    {:ok, ip} = :inet_parse.address(to_char_list(info.ipv4_address))
-    Logger.info "Got IP #{inspect ip}"
-    start_lifx
-    start_mdns(ip)
+  def handle_info(:start_client, state) do
+    Lifx.Client.start()
+    Lifx.TCPServer.start_link()
     {:noreply, state}
   end
 
+  def handle_info({:system_registry, :global, registry}, state) do
+    ip = get_in(registry, [:state, :network_interface, state.interface, :ipv4_address])
+
+    if ip != state.ip_address do
+      Lifx.Client.start()
+      Lifx.TCPServer.start_link()
+      Logger.info("IP ADDRESS CHANGED: #{ip}")
+    end
+
+    connected = match?({:ok, {:hostent, 'nerves-project.org', [], :inet, 4, _}}, test_dns())
+    {:noreply, %{state | ip_address: ip, connected: connected || false}}
+  end
+
+  def handle_info(_, state), do: {:noreply, state}
+
+  def handle_call(:connected?, _from, state), do: {:reply, state.connected, state}
+  def handle_call(:ip_addr, _from, state), do: {:reply, state.ip_address, state}
 end

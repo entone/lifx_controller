@@ -1,45 +1,56 @@
 defmodule LifxController.Mixfile do
   use Mix.Project
 
-  @target System.get_env("NERVES_TARGET") || "rpi2"
+  @target System.get_env("MIX_TARGET") || "host"
 
   def project do
-    [app: :lifx_controller,
-     version: "0.0.1",
-     target: @target,
-     archives: [nerves_bootstrap: "~> 0.1.4"],
-     deps_path: "deps/#{@target}",
-     build_path: "_build/#{@target}",
-     build_embedded: Mix.env == :prod,
-     start_permanent: Mix.env == :prod,
-     aliases: aliases,
-     deps: deps ++ system(@target)]
+    [
+      app: :lifx_controller,
+      version: "0.1.0",
+      elixir: "~> 1.5",
+      target: @target,
+      archives: [nerves_bootstrap: "~> 1.0"],
+      deps_path: "deps/#{@target}",
+      build_path: "_build/#{@target}",
+      lockfile: "mix.lock.#{@target}",
+      start_permanent: Mix.env() == :prod,
+      aliases: [loadconfig: [&bootstrap/1]],
+      deps: deps()
+    ]
   end
 
   def application do
     [
       mod: {LifxController, []},
-      applications: [:logger, :nerves_interim_wifi, :lifx, :mdns, :nerves, :nerves_system_rpi2]
+      applications: [:logger, :lifx] ++ applications(@target)
    ]
   end
 
+  def bootstrap(args) do
+    Application.start(:nerves_bootstrap)
+    Mix.Task.run("loadconfig", args)
+  end
+
+  def applications("rpi3") do
+    [:nerves_network, :nerves_runtime]
+  end
+  def applications(_), do: []
+
   def deps do
     [
-      {:nerves, "~> 0.3.0"},
-      {:nerves_system_rpi2, "~> 0.6.1"},
-      {:nerves_interim_wifi, "~> 0.1.0"},
-      {:mdns, "~> 0.1.3"},
-      {:lifx, "~> 0.1.7"}
+      {:nerves, "~> 1.0", runtime: false},
+      {:lifx, "~> 0.1.8"},
+    ] ++ deps(@target)
+  end
+
+  def deps("host"), do: []
+  def deps("rpi3") do
+    [
+      {:nerves_network, "~> 0.3.6"},
+      {:nerves_runtime, "~> 0.4"},
+      {:nerves_system_rpi3, "~> 1.1", runtime: false},
+      {:nerves_toolchain_arm_unknown_linux_gnueabihf, "~> 1.0", runtime: false},
     ]
-  end
-
-  def system(target) do
-    [{:"nerves_system_#{target}", ">= 0.0.0"}]
-  end
-
-  def aliases do
-    ["deps.precompile": ["nerves.precompile", "deps.precompile"],
-     "deps.loadpaths":  ["deps.loadpaths", "nerves.loadpaths"]]
   end
 
 end
